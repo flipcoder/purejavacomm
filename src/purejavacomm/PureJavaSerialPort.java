@@ -93,8 +93,8 @@ public class PureJavaSerialPort extends SerialPort {
 	}
 
 	private void sendNonDataEvents() {
-		if (ioctl(m_FD, TIOCMGET, m_ioctl) < 0)
-			return; //FIXME decide what to with errors in the background thread
+		if (ioctl(m_FD, TIOCMGET, m_ioctl) < 0) {}
+			//return; //FIXME decide what to with errors in the background thread
 		int oldstates = m_ControlLineStates;
 		m_ControlLineStates = m_ioctl[0];
 		int newstates = m_ControlLineStates;
@@ -728,7 +728,9 @@ public class PureJavaSerialPort extends SerialPort {
 			if (fcres != 0) // not much we can do if this fails, so just log it
 				log = log && log(1, "fcntl(%d,%d,%d) returned %d\n", m_FD, F_SETFL, flags, fcres);
 
-			m_Thread.interrupt();
+            try{
+			    m_Thread.interrupt();
+            }catch(NullPointerException e){}
 			int err = jtermios.JTermios.close(fd);
 			if (err < 0)
 				log = log && log(1, "JTermios.close returned %d, errno %d\n", err, errno());
@@ -795,8 +797,8 @@ public class PureJavaSerialPort extends SerialPort {
 
 		setReceiveTimeout();
 
-		checkReturnCode(ioctl(m_FD, TIOCMGET, m_ioctl));
-		m_ControlLineStates = m_ioctl[0];
+		if(checkReturnCode(ioctl(m_FD, TIOCMGET, m_ioctl), false))
+		    m_ControlLineStates = m_ioctl[0];
 
 		Runnable runnable = new Runnable() {
 			public void run() {
@@ -883,30 +885,30 @@ public class PureJavaSerialPort extends SerialPort {
 	synchronized private void updateControlLineState(int line) {
 		checkState();
 
-		if (ioctl(m_FD, TIOCMGET, m_ioctl) == -1)
-			throw new IllegalStateException();
+		if (ioctl(m_FD, TIOCMGET, m_ioctl) == -1) {}
+			//throw new IllegalStateException();
 
 		m_ControlLineStates = (m_ioctl[0] & line) + (m_ControlLineStates & ~line);
 	}
 
 	synchronized private boolean getControlLineState(int line) {
 		checkState();
-		if (ioctl(m_FD, TIOCMGET, m_ioctl) == -1)
-			throw new IllegalStateException();
+		if (ioctl(m_FD, TIOCMGET, m_ioctl) == -1) {}
+			//throw new IllegalStateException();
 		return (m_ioctl[0] & line) != 0;
 	}
 
 	synchronized private void setControlLineState(int line, boolean state) {
 		checkState();
-		if (ioctl(m_FD, TIOCMGET, m_ioctl) == -1)
-			throw new IllegalStateException();
+		if (ioctl(m_FD, TIOCMGET, m_ioctl) == -1) {}
+			//throw new IllegalStateException();
 
 		if (state)
 			m_ioctl[0] |= line;
 		else
 			m_ioctl[0] &= ~line;
-		if (ioctl(m_FD, TIOCMSET, m_ioctl) == -1)
-			throw new IllegalStateException();
+		if (ioctl(m_FD, TIOCMSET, m_ioctl) == -1) {}
+			//throw new IllegalStateException();
 	}
 
 	private void setReceiveTimeout() {
@@ -965,14 +967,21 @@ public class PureJavaSerialPort extends SerialPort {
 			throw new IllegalStateException("File descriptor is " + m_FD + " < 0, maybe closed by previous error condition");
 	}
 
-	private void checkReturnCode(int code) {
+	private boolean checkReturnCode(int code, boolean fatal) {
 		if (code != 0) {
-			close();
+            if(fatal)
+			    close();
 			StackTraceElement ste = Thread.currentThread().getStackTrace()[1];
 			String msg = String.format("JTermios call returned %d at %s", code, lineno());
 			log = log && log(1, "%s\n", msg);
-			throw new IllegalStateException(msg);
+            if(fatal)
+			    throw new IllegalStateException(msg);
+            return false;
 		}
+        return true;
 	}
+    private boolean checkReturnCode(int code) {
+        return checkReturnCode(code,true);
+    }
 
 }
